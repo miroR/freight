@@ -4,6 +4,7 @@ fi
 
 # Fetch the given field from the package's control file.
 apt_info() {
+    # Looks like a typo. Shouldn't it read '-f2 ', without the second '-'?.
     grep -E -i "^$2:" "$1" | cut -d: -f2- | awk '{print $1}'
 }
 
@@ -44,8 +45,16 @@ apt_source_name() {
 }
 
 # Print the version portion of a source package's pathname.
+# WARNING: this likely wouldn't work for sources that do not have '~repack' or
+# such named files. It needs to be sorted with conditionals, I think. The sed
+# substitution works for sources filenames of this pattern:
+# palemoon_27.8.3~repack-4.debian.tar.xz
+# palemoon_27.8.3~repack-4.dsc
+# palemoon_27.8.3~repack.orig.tar.xz
+# (and for completeness, this is  the binary)
+# palemoon_27.8.3~repack-4_amd64.deb
 apt_source_version() {
-    basename "$1" ".dsc" | cut -d_ -f2
+    basename "$1" ".dsc" | cut -d_ -f2 | sed 's/\.dsc//'
 }
 
 # Print the original version portion of a source package's pathname.
@@ -369,6 +378,7 @@ EOF
 # Add a source package to the given dist and to the pool.  *.orig.tar.gz,
 # *.diff.gz, and/or *.tar.gz will be found based on PATHNAME and associated
 # with the correct source package.
+# verbosity in this dirty pull request so contributor figures out how this work
 apt_cache_source() {
     DIST="$1"
     DISTCACHE="$2"
@@ -378,16 +388,57 @@ apt_cache_source() {
 
     NAME="$(apt_source_name "$PATHNAME")"
     VERSION="$(apt_source_version "$PATHNAME")"
+    echo \$VERSION: $VERSION
     ORIG_VERSION="$(apt_source_origversion "$PATHNAME")"
+    echo \$ORIG_VERSION: $ORIG_VERSION
     DIRNAME="$(dirname "$PATHNAME")"
+    echo \$DIRNAME: $DIRNAME
     DSC_FILENAME="${NAME}_${VERSION%*:}.dsc"
+    echo \$DSC_FILENAME: $DSC_FILENAME
+    # Should be like at the comment "Find which style of diff they're using"
+    # When I find time... Or Freight-team can recode it if the wait is too
+    # long.
+    # With the sed part in the apt_source_version() above this now works for my
+    # palemoon packages/sources which are named as in the comment there.
+    # Of possibilities .gz .bz2 .xz .lzma only one per package
     DEBTAR_GZ_FILENAME="${NAME}_${VERSION%*:}.debian.tar.gz"
+    echo \$DEBTAR_GZ_FILENAME: $DEBTAR_GZ_FILENAME
     DEBTAR_BZ2_FILENAME="${NAME}_${VERSION%*:}.debian.tar.bz2"
+    echo \$DEBTAR_BZ2_FILENAME: $DEBTAR_BZ2_FILENAME
     DEBTAR_XZ_FILENAME="${NAME}_${VERSION%*:}.debian.tar.xz"
+    echo \$DEBTAR_XZ_FILENAME: $DEBTAR_XZ_FILENAME
     DEBTAR_LZMA_FILENAME="${NAME}_${VERSION%*:}.debian.tar.lzma"
+    echo \$DEBTAR_LZMA_FILENAME: $DEBTAR_LZMA_FILENAME
     DIFFGZ_FILENAME="${NAME}_${VERSION%*:}.diff.gz"
-    ORIG_FILENAME="${NAME}_${ORIG_VERSION}.orig.tar.gz"
-    TAR_FILENAME="${NAME}_${VERSION%*:}.tar.gz"
+    echo \$DIFFGZ_FILENAME: $DIFFGZ_FILENAME
+    # ORIG_FILENAME can have .gz .bz2 .xz .lzma
+    # but only the extant one is it...
+    ORIG_GZ_FILENAME="${NAME}_${ORIG_VERSION}.orig.tar.gz"
+    echo \$ORIG_GZ_FILENAME: $ORIG_GZ_FILENAME
+    if [ -e "$VARLIB/apt/$DIST/$DIRNAME/$ORIG_GZ_FILENAME" ]; then
+        ls -l $VARLIB/apt/$DIST/$DIRNAME/$ORIG_GZ_FILENAME
+        ORIG_FILENAME=$ORIG_GZ_FILENAME
+    fi
+    ORIG_BZ2_FILENAME="${NAME}_${ORIG_VERSION}.orig.tar.bz2"
+    echo \$ORIG_BZ2_FILENAME: $ORIG_BZ2_FILENAME
+    if [ -e "$VARLIB/apt/$DIST/$DIRNAME/$ORIG_BZ2_FILENAME" ]; then
+        ls -l $VARLIB/apt/$DIST/$DIRNAME/$ORIG_BZ2_FILENAME
+        ORIG_FILENAME=$ORIG_BZ2_FILENAME
+    fi
+    ORIG_XZ_FILENAME="${NAME}_${ORIG_VERSION}.orig.tar.xz"
+    echo \$ORIG_XZ_FILENAME: $ORIG_XZ_FILENAME
+    if [ -e "$VARLIB/apt/$DIST/$DIRNAME/$ORIG_XZ_FILENAME" ]; then
+        ls -l $VARLIB/apt/$DIST/$DIRNAME/$ORIG_XZ_FILENAME
+        ORIG_FILENAME=$ORIG_XZ_FILENAME
+    fi
+    ORIG_LZMA_FILENAME="${NAME}_${ORIG_VERSION}.orig.tar.lzma"
+    echo \$ORIG_LZMA_FILENAME: $ORIG_LZMA_FILENAME
+    if [ -e "$VARLIB/apt/$DIST/$DIRNAME/$ORIG_LZMA_FILENAME" ]; then
+        ls -l $VARLIB/apt/$DIST/$DIRNAME/$ORIG_LZMA_FILENAME
+        ORIG_FILENAME=$ORIG_LZMA_FILENAME
+    fi
+    echo \$ORIG_FILENAME: $ORIG_FILENAME
+    ls -l $VARLIB/apt/$DIST/$DIRNAME/$ORIG_FILENAME
 
     # Find which style of diff they're using.
     if [ -f "$VARLIB/apt/$DIST/$DIRNAME/$DEBTAR_GZ_FILENAME" ]
